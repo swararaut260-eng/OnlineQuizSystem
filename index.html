@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Online Quiz System</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#172033}
+header{background:#263b80;color:white;padding:20px;text-align:center}
+main{max-width:850px;margin:25px auto;padding:15px}
+.card{background:white;padding:22px;border-radius:12px;margin:15px 0;box-shadow:0 3px 12px #0001}
+h2{color:#263b80}
+input,select,button{padding:11px;margin:7px 0;width:100%;border:1px solid #ccd3df;border-radius:7px;font-size:15px}
+button{background:#263b80;color:white;border:0;cursor:pointer}
+button:hover{background:#17265d}
+.secondary{background:#64748b}
+.danger{background:#c0392b}
+.option{display:block;background:#eef2ff;padding:12px;margin:8px 0;border-radius:7px;cursor:pointer}
+.option input{width:auto}
+.hidden{display:none}
+.small{font-size:13px;color:#64748b}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row button{flex:1}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+td,th{border:1px solid #ddd;padding:9px;text-align:left}
+#timer{font-weight:bold;color:#c0392b}
+</style>
+</head>
+<body>
+
+<header>
+<h1>Online Quiz System</h1>
+<p>Test Your Knowledge</p>
+</header>
+
+<main>
+
+<!-- HOME PAGE -->
+<section id="home" class="card">
+<h2>Welcome to Online Quiz</h2>
+<p>Select a category to start your quiz.</p>
+<select id="category">
+<option>HTML</option>
+<option>CSS</option>
+<option>JavaScript</option>
+</select>
+<button onclick="showLogin()">Start Quiz</button>
+<div class="row">
+<button class="secondary" onclick="showHistory()">My Results</button>
+<button class="secondary" onclick="showLeaderboard()">Leaderboard</button>
+<button class="secondary" onclick="showAdminLogin()">Admin Login</button>
+</div>
+</section>
+
+<!-- STUDENT LOGIN -->
+<section id="studentLogin" class="card hidden">
+<h2>Student Login</h2>
+<input id="studentName" placeholder="Enter your name">
+<input id="studentEmail" type="email" placeholder="Enter your email">
+<button onclick="startQuiz()">Continue</button>
+<button class="secondary" onclick="goHome()">Back</button>
+</section>
+
+<!-- QUIZ -->
+<section id="quizPage" class="card hidden">
+<h2 id="quizTitle">Quiz</h2>
+<p>Time left: <span id="timer">60</span> seconds</p>
+<p id="questionNumber"></p>
+<h3 id="questionText"></h3>
+<div id="options"></div>
+<button onclick="nextQuestion()">Next Question</button>
+<button class="secondary" onclick="goHome()">Exit Quiz</button>
+</section>
+
+<!-- RESULT -->
+<section id="resultPage" class="card hidden">
+<h2>Quiz Result</h2>
+<h3 id="scoreText"></h3>
+<p id="percentageText"></p>
+<div id="answerReview"></div>
+<button onclick="goHome()">Back to Home</button>
+</section>
+
+<!-- HISTORY -->
+<section id="historyPage" class="card hidden">
+<h2>My Results</h2>
+<div id="historyData"></div>
+<button onclick="goHome()">Back</button>
+</section>
+
+<!-- LEADERBOARD -->
+<section id="leaderboardPage" class="card hidden">
+<h2>Leaderboard</h2>
+<div id="leaderboardData"></div>
+<button onclick="goHome()">Back</button>
+</section>
+
+<!-- ADMIN LOGIN -->
+<section id="adminLogin" class="card hidden">
+<h2>Admin Login</h2>
+<input id="adminUser" placeholder="Admin username">
+<input id="adminPass" type="password" placeholder="Admin password">
+<button onclick="adminLogin()">Login</button>
+<button class="secondary" onclick="goHome()">Back</button>
+<p class="small">Demo login: admin / admin123</p>
+</section>
+
+<!-- ADMIN DASHBOARD -->
+<section id="adminDashboard" class="hidden">
+<div class="card">
+<h2>Admin Dashboard</h2>
+<p>Manage quiz questions and student results.</p>
+<div class="row">
+<button onclick="showAddQuestion()">Add Question</button>
+<button onclick="showQuestions()">View Questions</button>
+<button onclick="showStudentResults()">Student Results</button>
+</div>
+<button class="danger" onclick="adminLogout()">Logout</button>
+</div>
+
+<div id="adminContent"></div>
+</section>
+
+</main>
+
+<script>
+// DEFAULT QUESTIONS
+const defaultQuestions = [
+{category:"HTML",q:"What does HTML stand for?",options:["Hyper Text Markup Language","High Text Machine Language","Hyper Tool Markup Language","Home Text Markup Language"],answer:0},
+{category:"HTML",q:"Which tag creates a paragraph?",options:["<h1>","<p>","<br>","<div>"],answer:1},
+{category:"HTML",q:"Which tag creates a link?",options:["<a>","<link>","<img>","<p>"],answer:0},
+
+{category:"CSS",q:"What does CSS stand for?",options:["Computer Style Sheet","Cascading Style Sheets","Creative Style System","Colorful Style Sheet"],answer:1},
+{category:"CSS",q:"Which property changes text color?",options:["font-size","background","color","margin"],answer:2},
+{category:"CSS",q:"Which symbol selects an ID?",options:[".","#","*","@"],answer:1},
+
+{category:"JavaScript",q:"Which keyword declares a variable?",options:["var","int","string","define"],answer:0},
+{category:"JavaScript",q:"Which method displays a message?",options:["print()","alert()","writeText()","show()"],answer:1},
+{category:"JavaScript",q:"Which symbol is used for comments?",options:["//","##","**","%%"],answer:0}
+];
+
+let questions = JSON.parse(localStorage.getItem("quizQuestions")) || defaultQuestions;
+let results = JSON.parse(localStorage.getItem("quizResults")) || [];
+
+let currentQuestions = [];
+let currentIndex = 0;
+let score = 0;
+let selectedAnswers = [];
+let student = {};
+let timerValue = 60;
+let timerInterval;
+
+// SAVE QUESTIONS
+function saveQuestions(){
+ localStorage.setItem("quizQuestions",JSON.stringify(questions));
+}
+
+// SAVE RESULTS
+function saveResults(){
+ localStorage.setItem("quizResults",JSON.stringify(results));
+}
+
+// SHOW SECTION
+function showSection(id){
+ document.querySelectorAll("main > section").forEach(s=>s.classList.add("hidden"));
+ document.getElementById("adminDashboard").classList.add("hidden");
+ document.getElementById(id).classList.remove("hidden");
+}
+
+function goHome(){
+ clearInterval(timerInterval);
+ showSection("home");
+}
+
+function showLogin(){
+ showSection("studentLogin");
+}
+
+function startQuiz(){
+ const name=document.getElementById("studentName").value.trim();
+ const email=document.getElementById("studentEmail").value.trim();
+ if(!name || !email || !email.includes("@")){
+  alert("Please enter a valid name and email.");
+  return;
+ }
+ student={name,email};
+ const category=document.getElementById("category").value;
+ currentQuestions=questions.filter(q=>q.category===category);
+ if(currentQuestions.length===0){
+  alert("No questions available in this category.");
+  return;
+ }
+ currentIndex=0;
+ score=0;
+ selectedAnswers=[];
+ timerValue=60;
+ showSection("quizPage");
+ document.getElementById("quizTitle").textContent=category+" Quiz";
+ showQuestion();
+ startTimer();
+}
+
+function startTimer(){
+ clearInterval(timerInterval);
+ document.getElementById("timer").textContent=timerValue;
+ timerInterval=setInterval(()=>{
+  timerValue--;
+  document.getElementById("timer").textContent=timerValue;
+  if(timerValue<=0){
+   clearInterval(timerInterval);
+   finishQuiz();
+  }
+ },1000);
+}
+
+function showQuestion(){
+ const q=currentQuestions[currentIndex];
+ document.getElementById("questionNumber").textContent=
+ "Question "+(currentIndex+1)+" of "+currentQuestions.length;
+ document.getElementById("questionText").textContent=q.q;
+ const box=document.getElementById("options");
+ box.innerHTML="";
+ q.options.forEach((option,index)=>{
+  const label=document.createElement("label");
+  label.className="option";
+  const radio=document.createElement("input");
+  radio.type="radio";
+  radio.name="answer";
+  radio.value=index;
+  if(selectedAnswers[currentIndex]===index)radio.checked=true;
+  label.appendChild(radio);
+  label.appendChild(document.createTextNode(" "+option));
+  box.appendChild(label);
+ });
+}
+
+function nextQuestion(){
+ const selected=document.querySelector('input[name="answer"]:checked');
+ selectedAnswers[currentIndex]=selected?Number(selected.value):null;
+ if(currentIndex<currentQuestions.length-1){
+  currentIndex++;
+  showQuestion();
+ }else{
+  finishQuiz();
+ }
+}
+
+function finishQuiz(){
+ clearInterval(timerInterval);
+ score=0;
+ currentQuestions.forEach((q,i)=>{
+  if(selectedAnswers[i]===q.answer)score++;
+ });
+ const percentage=Math.round(score/currentQuestions.length*100);
+ const category=document.getElementById("category").value;
+ const result={
+  name:student.name,
+  email:student.email,
+  category,
+  score,
+  total:currentQuestions.length,
+  percentage,
+  date:new Date().toLocaleString()
+ };
+ results.push(result);
+ saveResults();
+
+ document.getElementById("scoreText").textContent=
+ "Your Score: "+score+" / "+currentQuestions.length;
+ document.getElementById("percentageText").textContent=
+ "Percentage: "+percentage+"%";
+ let review="<h3>Answer Review</h3>";
+ currentQuestions.forEach((q,i)=>{
+  review+="<p><b>"+(i+1)+". "+escapeHTML(q.q)+"</b><br>";
+  review+="Your answer: "+(selectedAnswers[i]===null || selectedAnswers[i]===undefined?"Not answered":escapeHTML(q.options[selectedAnswers[i]]))+"<br>";
+  review+="Correct answer: "+escapeHTML(q.options[q.answer])+"</p>";
+ });
+ document.getElementById("answerReview").innerHTML=review;
+ showSection("resultPage");
+}
+
+function showHistory(){
+ const mine=results.filter(r=>r.email.toLowerCase()===(document.getElementById("studentEmail").value||"").trim().toLowerCase());
+ let html="";
+ if(mine.length===0) html="<p>No results found for the email entered on the login page.</p>";
+ mine.forEach(r=>html+="<p>"+escapeHTML(r.category)+" - "+r.score+"/"+r.total+" ("+r.percentage+"%) - "+escapeHTML(r.date)+"</p>");
+ document.getElementById("historyData").innerHTML=html;
+ showSection("historyPage");
+}
+
+function showLeaderboard(){
+ let sorted=[...results].sort((a,b)=>b.percentage-a.percentage);
+ let html="<table><tr><th>Name</th><th>Category</th><th>Score</th><th>%</th></tr>";
+ sorted.forEach(r=>html+="<tr><td>"+escapeHTML(r.name)+"</td><td>"+escapeHTML(r.category)+"</td><td>"+r.score+"/"+r.total+"</td><td>"+r.percentage+"%</td></tr>");
+ html+="</table>";
+ document.getElementById("leaderboardData").innerHTML=sorted.length?html:"<p>No results yet.</p>";
+ showSection("leaderboardPage");
+}
+
+// ADMIN LOGIN
+function showAdminLogin(){
+ showSection("adminLogin");
+}
+
+function adminLogin(){
+ const user=document.getElementById("adminUser").value;
+ const pass=document.getElementById("adminPass").value;
+ if(user==="admin" && pass==="admin123"){
+  showAdminDashboard();
+ }else{
+  alert("Incorrect admin username or password.");
+ }
+}
+
+function showAdminDashboard(){
+ showSection("adminDashboard");
+ showQuestions();
+}
+
+function adminLogout(){
+ showSection("home");
+}
+
+// ADD QUESTION FORM
+function showAddQuestion(){
+ document.getElementById("adminContent").innerHTML=`
+ <div class="card">
+ <h2>Add New Question</h2>
+ <select id="newCategory">
+ <option>HTML</option><option>CSS</option><option>JavaScript</option>
+ </select>
+ <input id="newQuestion" placeholder="Enter question">
+ <input id="opt0" placeholder="Option 1">
+ <input id="opt1" placeholder="Option 2">
+ <input id="opt2" placeholder="Option 3">
+ <input id="opt3" placeholder="Option 4">
+ <label>Correct Answer</label>
+ <select id="correctOption">
+ <option value="0">Option 1</option>
+ <option value="1">Option 2</option>
+ <option value="2">Option 3</option>
+ <option value="3">Option 4</option>
+ </select>
+ <button onclick="addQuestion()">Save Question</button>
+ </div>`;
+}
+
+function addQuestion(){
+ const q=document.getElementById("newQuestion").value.trim();
+ const options=[0,1,2,3].map(i=>document.getElementById("opt"+i).value.trim());
+ if(!q || options.some(o=>!o)){
+  alert("Please fill in the question and all four options.");
+  return;
+ }
+ questions.push({
+  category:document.getElementById("newCategory").value,
+  q,
+  options,
+  answer:Number(document.getElementById("correctOption").value)
+ });
+ saveQuestions();
+ alert("Question added successfully!");
+ showQuestions();
+}
+
+// VIEW AND DELETE QUESTIONS
+function showQuestions(){
+ let html="<div class='card'><h2>All Questions</h2>";
+ if(!questions.length)html+="<p>No questions available.</p>";
+ questions.forEach((q,i)=>{
+  html+="<p><b>"+(i+1)+". ["+escapeHTML(q.category)+"] "+escapeHTML(q.q)+"</b><br>";
+  html+="Correct answer: "+escapeHTML(q.options[q.answer])+"</p>";
+  html+="<button class='danger' onclick='deleteQuestion("+i+")'>Delete Question</button><hr>";
+ });
+ html+="</div>";
+ document.getElementById("adminContent").innerHTML=html;
+}
+
+function deleteQuestion(index){
+ if(confirm("Are you sure you want to delete this question?")){
+  questions.splice(index,1);
+  saveQuestions();
+  showQuestions();
+ }
+}
+
+// VIEW STUDENT RESULTS
+function showStudentResults(){
+ let html="<div class='card'><h2>Student Results</h2>";
+ if(!results.length)html+="<p>No student results yet.</p>";
+ else{
+  html+="<table><tr><th>Name</th><th>Email</th><th>Category</th><th>Score</th><th>%</th></tr>";
+  results.forEach(r=>{
+   html+="<tr><td>"+escapeHTML(r.name)+"</td><td>"+escapeHTML(r.email)+"</td><td>"+escapeHTML(r.category)+"</td><td>"+r.score+"/"+r.total+"</td><td>"+r.percentage+"%</td></tr>";
+  });
+  html+="</table>";
+ }
+ html+="</div>";
+ document.getElementById("adminContent").innerHTML=html;
+}
+
+function escapeHTML(value){
+ return String(value).replace(/[&<>"']/g,c=>({
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+</script>
+</body>
+</html>
